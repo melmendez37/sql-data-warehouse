@@ -1,7 +1,22 @@
 CREATE OR REPLACE PROCEDURE silver.load_silver()
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    start_time TIMESTAMP;
+    end_time TIMESTAMP;
+    batch_start_time TIMESTAMP;
+    batch_end_time TIMESTAMP;
 BEGIN
+    batch_start_time := clock_timestamp();
+    RAISE NOTICE '==================================';
+    RAISE NOTICE 'Loading Silver Layer...';
+    RAISE NOTICE '==================================';
+
+    RAISE NOTICE '----------------------------------';
+    RAISE NOTICE 'Loading CRM Tables...';
+    RAISE NOTICE '----------------------------------';
+
+    start_time := clock_timestamp();
     -- >> crm_cust_info
     RAISE NOTICE '>> Truncating Table: silver.crm_cust_info';
     TRUNCATE TABLE silver.crm_cust_info;
@@ -36,7 +51,11 @@ BEGIN
              WHERE cst_id IS NOT NULL
          ) -- Removed duplicates
     WHERE flag_last = 1; -- Select the most recent record per customer
+    end_time := clock_timestamp();
+    RAISE NOTICE '>> Duration: %', end_time - start_time, ' seconds';
+    RAISE NOTICE '>> --------------';
 
+    start_time := clock_timestamp();
     -- >> crm_prd_info
     RAISE NOTICE '>> Truncating Table: silver.crm_prd_info';
     TRUNCATE TABLE silver.crm_prd_info;
@@ -69,7 +88,11 @@ BEGIN
             AS DATE)
         AS prd_end_dt -- Calculate end date as one day before the next start date
     FROM bronze.crm_prd_info;
+    end_time := clock_timestamp();
+    RAISE NOTICE '>> Duration: %', end_time - start_time, ' seconds';
+    RAISE NOTICE '>> --------------';
 
+    start_time := clock_timestamp();
     -- >> crm_sales_details
     RAISE NOTICE '>> Truncating Table: silver.crm_sales_details';
     TRUNCATE TABLE silver.crm_sales_details;
@@ -107,7 +130,11 @@ BEGIN
              ELSE sls_price
             END AS sls_price -- Derive price if original value is invalid
     FROM bronze.crm_sales_details;
+    end_time := clock_timestamp();
+    RAISE NOTICE '>> Duration: %', end_time - start_time, ' seconds';
+    RAISE NOTICE '>> --------------';
 
+    start_time := clock_timestamp();
     -- >> erp_cust_az12
     RAISE NOTICE '>> Truncating Table: silver.erp_cust_az12';
     TRUNCATE TABLE silver.erp_cust_az12;
@@ -125,7 +152,11 @@ BEGIN
              ELSE 'N/A'
             END AS gen -- Normalize gender values and handle unknown cases
     FROM bronze.erp_cust_az12;
+    end_time := clock_timestamp();
+    RAISE NOTICE '>> Duration: %', end_time - start_time, ' seconds';
+    RAISE NOTICE '>> --------------';
 
+    start_time := clock_timestamp();
     -- >> erp_loc_a101
     RAISE NOTICE '>> Truncating Table: silver.erp_loc_a101';
     TRUNCATE TABLE silver.erp_loc_a101;
@@ -139,7 +170,11 @@ BEGIN
              ELSE TRIM(cntry)
             END AS cntry -- Normalize and Handle missing/blank country codes
     FROM bronze.erp_loc_a101;
+    end_time := clock_timestamp();
+    RAISE NOTICE '>> Duration: %', end_time - start_time, ' seconds';
+    RAISE NOTICE '>> --------------';
 
+    start_time := clock_timestamp();
     -- >> erp_px_cat_g1v2
     RAISE NOTICE '>> Truncating Table: silver.erp_px_cat_g1v2';
     TRUNCATE TABLE silver.erp_px_cat_g1v2;
@@ -151,6 +186,22 @@ BEGIN
         subcat,
         maintenance
     FROM bronze.erp_px_cat_g1v2;
+    end_time := clock_timestamp();
+    RAISE NOTICE '>> Duration: %', end_time - start_time, ' seconds';
+    RAISE NOTICE '>> --------------';
+
+    batch_end_time := clock_timestamp();
+    RAISE NOTICE '==================================';
+    RAISE NOTICE 'Loading Silver Layer Completed.';
+    RAISE NOTICE 'Duration: %', batch_end_time - batch_start_time, ' seconds';
+    RAISE NOTICE '==================================';
+
+    EXCEPTION
+        WHEN others THEN
+            RAISE NOTICE '==================================';
+            RAISE NOTICE 'Error occurred during loading Silver Layer';
+            RAISE NOTICE 'SQLSTATE: %', SQLSTATE;
+            RAISE NOTICE 'ERROR: %', SQLERRM;
+            RAISE NOTICE '==================================';
 END;
 $$;
-
